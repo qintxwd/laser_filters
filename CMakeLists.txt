@@ -17,10 +17,12 @@ ament_auto_add_library(laser_scan_filters SHARED src/laser_scan_filters.cpp)
 set(FILTER_CHAINS
     scan_to_cloud_filter_chain
     scan_to_scan_filter_chain
-    generic_laser_filter_node
+    generic_laser_filter
 )
+
 foreach(FILTER_CHAIN ${FILTER_CHAINS})
-    ament_auto_add_executable(${FILTER_CHAIN} src/${FILTER_CHAIN}.cpp)
+    ament_auto_add_library(${FILTER_CHAIN} SHARED src/${FILTER_CHAIN}.cpp)
+    ament_auto_add_executable(${FILTER_CHAIN}_node src/${FILTER_CHAIN}_node.cpp)
 endforeach()
 
 ##############################################################################

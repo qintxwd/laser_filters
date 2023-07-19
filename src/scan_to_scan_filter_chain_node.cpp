@@ -27,12 +27,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "generic_laser_filter.h"
+#include "scan_to_scan_filter_chain.h"
 
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<laser_filters::GenericLaserScanFilter>();
+  auto node = std::make_shared<laser_filters::ScanToScanFilterChain>(rclcpp::NodeOptions());
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

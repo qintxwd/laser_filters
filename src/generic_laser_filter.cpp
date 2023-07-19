@@ -27,66 +27,58 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "scan_to_scan_filter_chain.h"
+#include "generic_laser_filter.h"
+
 namespace laser_filters
 {
 
-ScanToScanFilterChain::ScanToScanFilterChain(const rclcpp::NodeOptions &options)
-  : rclcpp::Node("scan_to_scan_filter_chain_node", options)
-  , tf_filter_(nullptr)
-  , tf_(nullptr)
+void GenericLaserScanFilter::foo(const sensor_msgs::msg::LaserScan::SharedPtr msg)
+{
+}
+
+GenericLaserScanFilter::GenericLaserScanFilter(const rclcpp::NodeOptions &options)
+  : rclcpp::Node("generic_laser_scan_filter_node", options)
 {
   buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
 
+  tf_ = std::make_shared<tf2_ros::TransformListener>(*buffer_);
+
   scan_sub_ =
-      std::make_unique<message_filters::Subscriber<sensor_msgs::msg::LaserScan>>(shared_from_this(), "scan", rmw_qos_profile_sensor_data);
+      std::make_shared<message_filters::Subscriber<sensor_msgs::msg::LaserScan>>(shared_from_this(), "scan", rmw_qos_profile_sensor_data);
+
+  tf_filter_ =
+      std::make_shared<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>>(*scan_sub_, *buffer_, "base_link", 50, shared_from_this());
 
   filter_chain_ = std::make_shared<filters::FilterChain<sensor_msgs::msg::LaserScan>>("sensor_msgs::msg::LaserScan");
 
   // Configure filter chain
   filter_chain_->configure("", get_node_logging_interface(), get_node_parameters_interface());
 
-  std::string tf_message_filter_target_frame;
-  if (get_parameter("tf_message_filter_target_frame", tf_message_filter_target_frame))
-  {
-
-    get_parameter_or("tf_message_filter_tolerance", tf_filter_tolerance_, 0.03);
-
-    tf_ = std::make_shared<tf2_ros::TransformListener>(*buffer_);
-    tf_filter_ = std::make_shared<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>>(*scan_sub_, *buffer_, "", 50, shared_from_this());
-    tf_filter_->setTargetFrame(tf_message_filter_target_frame);
-    tf_filter_->setTolerance(std::chrono::duration<double>(tf_filter_tolerance_));
-
-    // Setup tf::MessageFilter generates callback
-    tf_filter_->registerCallback(std::bind(&ScanToScanFilterChain::callback, this, std::placeholders::_1));
-  }
-  else
-  {
-    // Pass through if no tf_message_filter_target_frame
-    scan_sub_->registerCallback(std::bind(&ScanToScanFilterChain::callback, this, std::placeholders::_1));
-  }
+  // Setup tf::MessageFilter for input
+  tf_filter_->registerCallback(std::bind(&GenericLaserScanFilter::callback, this, std::placeholders::_1));
+  tf_filter_->setTolerance(0.03s);
 
   // Advertise output
-  output_pub_ = create_publisher<sensor_msgs::msg::LaserScan>("scan_filtered", 1000);
+  output_pub_ = create_publisher<sensor_msgs::msg::LaserScan>("output", 1000);
+
+  std::function<void(const sensor_msgs::msg::LaserScan::SharedPtr)> standard_callback =
+      std::bind(&GenericLaserScanFilter::foo, this, std::placeholders::_1);
+  create_subscription<sensor_msgs::msg::LaserScan>("scan", rclcpp::SensorDataQoS(), standard_callback);
+
+  deprecation_timer_ = create_wall_timer(5s, [this]() {
+    RCLCPP_WARN(get_logger(), "'generic_laser_filter_node' has been deprecated. "
+                              "Please switch to 'scan_to_scan_filter_chain'.");
+  });
 }
 
-// Destructor
-ScanToScanFilterChain::~ScanToScanFilterChain()
-{
-}
-
-// Callback
-void ScanToScanFilterChain::callback(const std::shared_ptr<const sensor_msgs::msg::LaserScan> &msg_in)
+void GenericLaserScanFilter::callback(const std::shared_ptr<const sensor_msgs::msg::LaserScan> &msg_in)
 {
   // Run the filter chain
-  if (filter_chain_->update(*msg_in, msg_))
-  {
-    // only publish result if filter succeeded
-    output_pub_->publish(msg_);
-  }
+  filter_chain_->update(*msg_in, msg_);
+
+  // Publish the output
+  output_pub_->publish(msg_);
 }
-
 }  // namespace laser_filters
-
 #include "rclcpp_components/register_node_macro.hpp"
-RCLCPP_COMPONENTS_REGISTER_NODE(laser_filters::ScanToScanFilterChain)
+RCLCPP_COMPONENTS_REGISTER_NODE(laser_filters::GenericLaserScanFilter)

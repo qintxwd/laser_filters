@@ -27,13 +27,49 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "generic_laser_filter.h"
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
 
-int main(int argc, char **argv)
+// TF
+#include "tf2_ros/message_filter.h"
+#include <tf2_ros/transform_listener.h>
+
+#include "message_filters/subscriber.h"
+
+#include "filters/filter_chain.hpp"
+
+namespace laser_filters
 {
-  rclcpp::init(argc, argv);
-  auto node = std::make_shared<laser_filters::GenericLaserScanFilter>();
-  rclcpp::spin(node);
-  rclcpp::shutdown();
-  return 0;
-}
+
+class ScanToScanFilterChain : public rclcpp::Node
+{
+protected:
+  // Our NodeHandle
+  // rclcpp::Node::SharedPtr nh_;
+
+  // Components for tf::MessageFilter
+  std::shared_ptr<tf2_ros::TransformListener> tf_;
+  std::shared_ptr<tf2_ros::Buffer> buffer_;
+
+  std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::LaserScan>> scan_sub_;
+  std::shared_ptr<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>> tf_filter_;
+  double tf_filter_tolerance_;
+
+  // Filter Chain
+  std::shared_ptr<filters::FilterChain<sensor_msgs::msg::LaserScan>> filter_chain_;
+
+  // Components for publishing
+  sensor_msgs::msg::LaserScan msg_;
+  rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr output_pub_;
+
+public:
+  // Constructor
+  ScanToScanFilterChain(const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
+
+  // Destructor
+  ~ScanToScanFilterChain();
+
+  // Callback
+  void callback(const std::shared_ptr<const sensor_msgs::msg::LaserScan> &msg_in);
+};
+}  // namespace laser_filters
